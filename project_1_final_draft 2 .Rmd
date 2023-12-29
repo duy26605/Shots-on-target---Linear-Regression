@@ -1,0 +1,454 @@
+---
+title: "Predicting Number of Shots on Target for All Time Premier League Player - Final Draft"
+author: "Emma Tran, Tracy Bui, Duy Nguyen"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    toc: yes
+  html_document:
+    toc: yes
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.width=6, fig.height=4,fig.align = "center", echo = TRUE)
+```
+
+# Abstract
+
+This report analyzes a data set on all time Premier League soccer players' statistics with the purpose of developing a linear regression model that can predict the number of shots on target from various features of Premier League Players. The features include position, age, number of times hitting woodwork, number of big chances missed, number of interception, number of recoveries, number of aerial battle won, number of assists, and number of passes per match. We found that we can predict the square root of shots on target with the adjusted R^2 = 0.9398, and the residual standard error is 0.7751 square root shots on target. The significant predictors are Age, Hit woodwork, Big chances missed, Interceptions, Recoveries, Assists,  and Shots on target.
+
+We discover that older soccer player with more number of hit woodwork, big chances missed, recoveries, assists, and less number of interceptions tends to have a higher number of shots on target. We also found 8 interaction effects, being: one between age and big chances missed, one between age and interceptions, one between age and recoveries, one between hit woodwork and big chances missed, one between hit woodwork and interceptions, oen between big chances missed and interceptions, one between interceptions and assists, and one between recoveries and assists.
+
+# Introduction
+
+This data set is from Kaggle naming "All Time Premier League Player Statistics". (Source: https://www.kaggle.com/datasets/rishikeshkanabar/premier-league-player-statistics-updated-daily?fbclid=IwAR0gFPjRhFVvAEMeDZSqjkQMlvxlVeisrNh2cRnxVwyybIZYT_MJiSi3qtI). This data set contains the statistical figure of 308 players in Premier League. The variables are: 
+● Shots on Target ->Response variable
+● Position (Midfielder or Forward)
+● Age (Age of the player)
+● Hit woodwork
+● Big chances missed
+● Interception
+● Recoveries
+● Aerial battle won
+● Assists
+● Passes per match
+
+The response variable is the number of shots on target. We are interested in which variables can best predict and how they influence the number of shot on target. We will begin by exploring the data numerically and graphically. We will choose, fit, and assess a series of multiple linear regression models following a strategy that begins with a first-order linear model. Then we will investigate possible interaction effects. We will finish with a thorough diagnostic assessment of the final model and show some example predictions.
+
+# Data Collection (as needed) and Data Characteristics
+
+## Read in data
+
+install.packages("data.table")
+
+```{r}
+library("data.table")   
+
+shotsOnTarget <- fread("dataset - 2020-09-24.csv",
+                  select = c("Position", "Age", "Hit woodwork", "Big chances missed",
+ "Interceptions", "Recoveries", "Aerial battles won", "Assists",
+ "Passes per match", "Shots on target"), fill = TRUE)
+
+head (shotsOnTarget)
+```
+
+## Exploratory Analysis
+
+### Check distributions of the predictor variables
+
+```{r}
+
+head(is.na(shotsOnTarget))
+shotsOnTarget = na.omit(shotsOnTarget)
+
+```
+
+Since we find that there are null values in our data set, we decide to omit all of them. Because our omit function deletes all rows with null values, it only keeps data of Midfielder and Forward. We suspect it is due to these positions creating shots on target while the other positions do not. 
+
+```{r}
+library (tidyr)
+library (ggplot2)
+
+ggplot(data.frame(shotsOnTarget), aes(x=Position)) +
+  geom_bar()
+
+hist(shotsOnTarget$Age)
+
+hist(shotsOnTarget$`Hit woodwork`)
+
+hist(shotsOnTarget$`Big chances missed`)
+
+hist(shotsOnTarget$Interceptions)
+  
+hist(shotsOnTarget$Recoveries)
+
+hist(shotsOnTarget$`Aerial battles won`)
+
+hist(shotsOnTarget$`Assists`)
+
+hist(shotsOnTarget$`Passes per match`)
+
+```
+
+The total count is around 200, which means that about 100 rows were removed by the na.omit function.
+
+According to the histograms, Age is quite normally distributed while all other predictor are right-skewed. Therefore, we will consider the log transformation for all right-skewed predictors.
+
+### Pairwise correlations
+
+```{r}
+plot(shotsOnTarget)
+```
+
+The number of shots on target per soccer player is most correlated with Age, Hit woodwork, Big chances missed, and Assists. There are almost no correlation between any predictor except Interception and  Recoveries.
+
+Category predictor variable is Postion (Midfielder, Forward).
+
+# Results
+
+## Model 1: The first model will include all individual predictors.
+
+### First-order model with all predictors
+
+```{r}
+shotsOnTarget$y.offset = shotsOnTarget$`Shots on target`+0.5
+fit1 = lm (y.offset ~ as.factor(Position) + Age + `Hit woodwork` + `Big chances missed` + Interceptions + Recoveries + `Aerial battles won` + `Assists` + `Passes per match`, data=shotsOnTarget)
+
+summary (fit1)
+```
+
+Using all predictor variables, the model explains 93.14% of the variation in the number of shots on target (Adjusted R-square). The residual standard error is 9.477 (shots on target per player). The most significant predictors are Hit woodwork, Big chances missed, Assists. 
+
+
+### Residual Analysis - First-order model
+
+```{r}
+par (mfrow=c(1,2))
+plot (fit1, which=c(1,2))
+```
+
+1. The residuals vs fitted plot show increasing residual variance with increasing fitted values. This violates the assumption of constant residual variance.
+
+2. The normal Q-Q plot shows that the residuals do not follow a normal distribution. 
+
+Given these concerns, we will not interpret the parameter estimates in this model. Instead, we will run a Box-Cox analysis to find a power transformation that may address these issues with the residuals.
+
+```{r}
+library(MASS)
+boxcox (fit1)
+```
+
+The Box-Cox Analysis indicates that an optimal transformation would have a power just above zero. Since 95% confident interval for the optimal lambda λ is close to 0.5, so the best transformation is Y^0.5.
+
+## Model 2 - Square root Shots on target vs. all predictors
+
+```{r}
+fit2 = lm ((y.offset)^0.5 ~ as.factor(Position) + Age + `Hit woodwork` + `Big chances missed` + Interceptions + Recoveries + `Aerial battles won` + `Assists` + `Passes per match`, data=shotsOnTarget)
+
+summary (fit2)
+
+```
+
+This model explains 88.87% of the variation in Square-root(Shots on target). The residual standard error is 1.054 Square-root(Shots on target), which is 1.110916 (shots on target per player).
+
+### Residual Analysis - Second-order model
+
+```{r}
+par (mfrow=c(1,2))
+plot (fit2)
+```
+
+The residuals for model 2 look much better compared to model 1. No obvious issues are seen in any of the plots.
+Next we will interpret the parameters for model 2.
+
+##Qualitative interpretations of estimates
+
+```{r}
+confint (fit2)
+```
+
+Qualitative interpretations of estimates, each one accounting for the other predictors in the model (i.e., preface each statement with, “All other things being the same, …”):
+- Position (whether a forward or a midfielder) does not have a significant association with the number of shots on target.
+- Age does not have a significant association with the number of shots on target.
+- The more times hitting woodwork will increase the number of shots on target.
+- The higher number of big chances misses will increase the number of shots on target.
+- Interceptions does not have a significant association with the number of shots on target.
+- The higher number of recoveries will increase the number of shots on target.
+- Aerial battles won does not have a significant association with the number of shots on target.
+- The higher number of Assists will increase the number of shots on target.
+- Passes per a match does not have a significant association with the number of shots on target.
+
+```{r}
+
+#Plot shotsOnTarget vs predicted for fit 2
+
+plot ((y.offset)^0.5 ~ fit2$fitted.values, data=shotsOnTarget)
+abline (0, 1)
+
+# Add prediction limits 
+
+fit2.pred = as.data.frame (predict (fit2, interval="prediction"))
+
+order2 = order (fit2.pred$fit)
+lines (fit2.pred$fit [order2], fit2.pred$lwr[order2], col='red')
+lines (fit2.pred$fit [order2], fit2.pred$upr[order2], col='red')
+
+# Back-transform fitted Shots on target and plot
+
+pred.shotsOnTarget = (fit2$fitted.values)^2
+plot (`Shots on target` ~ pred.shotsOnTarget, data=shotsOnTarget)
+abline (0, 1)
+
+# Add prediction limits to previous plot
+
+lines (exp (fit2.pred$fit [order2]), exp (fit2.pred$lwr[order2]), col='red')
+lines (exp (fit2.pred$fit [order2]), exp (fit2.pred$upr[order2]), col='red')
+
+```
+
+The plot above shows the observed number of Shots on Target vs the fitted Shots on Target, back-transformed from Model 2 to the original scale (number of shots on target). Note that on the original scale of shots on target, predicted number of shot on targets are less precise.
+
+
+### Stepwise Regression:
+
+Next, we apply step-wise regression to the full square root (Shots on Targets) model using the AIC criterion.
+
+```{r}
+fit2aic = step (fit2, direction='both')
+```
+
+Position, number of aerial battles won, number of passes per match were removed from the model. Some of the remaining predictors are only marginally significant. 
+
+```{r}
+summary (fit2aic)
+```
+
+The AIC stepwise model has an adjusted r-squared of 0.8895 and a residual standard error of 1.05.
+
+
+### Model 2 with Interactions
+
+Next, we well add all possible two-way interaction effects to the AIC step-wise regression model obtained above.
+
+```{r}
+mycenter = function (x) x - mean (x)
+
+shotsOnTarget$Age.c = mycenter (shotsOnTarget$Age)
+shotsOnTarget$Hit_woodwork.c = mycenter (shotsOnTarget$`Hit woodwork`)
+shotsOnTarget$Big_chances_missed.c = mycenter (shotsOnTarget$`Big chances missed`)
+shotsOnTarget$Interceptions.c = mycenter (shotsOnTarget$Interceptions)
+shotsOnTarget$Recoveries.c = mycenter(shotsOnTarget$Recoveries)
+shotsOnTarget$Assists.c = mycenter(shotsOnTarget$Assists)
+
+fit2aic.int = lm ((y.offset)^0.5 ~ (Age.c + Hit_woodwork.c + Big_chances_missed.c + Interceptions.c + Recoveries.c + Assists.c)^2, data=shotsOnTarget)
+
+summary (fit2aic.int)
+```
+
+The model above has a slightly higher adjusted R^2 (0.9401 vs. 0.8887) and lower residual standard error (0.773 vs. 1.054).
+
+##Interaction model step-wise regression
+
+A step-wise regression will be used to get a more streamlined model.
+
+```{r results="hide"}
+nrows = fit2aic.int$rank + fit2aic.int$df.residual
+fit2.int.aic = step (fit2aic.int, direction='both', k=log(nrows))
+```
+
+```{r}
+summary (fit2.int.aic)
+```
+
+Eight interaction effects were retained using the AIC criterion, i.e, age vs. big chances missed and age vs. interceptions. This means that the slope between the squared root shots on target and age is different from different number of big chances missed and for differenct number of interceptions.
+
+
+##Final Model
+
+We will use the last model above as our final model.
+
+### Residual and Influence Analysis
+
+Next we will look at the residual and influence analysis for this model.
+
+```{r}
+par (mfrow = c(1,2))
+plot (fit2.int.aic)
+```
+
+For the residual plots, the model 2 is better than model 1 in terms of constant variance, linearity and normality. No obvious issues are seen in any of the plots. 
+
+```{r}
+boxplot (fit2.int.aic$residuals, horizontal=T, main="Residuals")
+```
+
+The box plot of the residuals looks fine. The distribution is symmetric with no obvious outliers.
+
+```{r}
+plot ((y.offset)^0.5 ~ fit2.int.aic$fitted.values, data=shotsOnTarget)
+abline (0, 1)
+```
+
+The plot of square-root (Shots on Target) vs.  the fitted square-root (Shots on Target) shows a good fit of the model to the data.
+
+install.packages("car", dependencies=TRUE)
+
+```{r}
+library(car)
+car::vif (fit2.int.aic, type = 'predictor')
+```
+
+All of the VIF values are less than 5, which is good for the collinearity assessment.
+
+Leverage cutoff:
+
+```{r}
+(levg.cutoff = 3*fit2.int.aic$rank / nrows)
+```
+
+The leverage cutoff is 0.2295918.
+
+```{r}
+plot (fit2.int.aic, which=5)
+abline (v=levg.cutoff, col='blue')
+```
+
+```{r}
+hatvals = hatvalues (fit2.int.aic) > levg.cutoff
+sum (hatvals)
+```
+```{r}
+sum (hatvals) / nrows
+```
+
+There are 15 rows (4.9% of the sample size) with leverage values above the cutoff. We expect about 5%.
+
+```{r}
+summary (cooks.distance(fit2.int.aic))
+```
+
+There are no Cook’s Distance values above the cutoff of 0.5.&&&% #xem laiiii
+
+Scatterplot matrix of variables in the final model:
+
+```{r}
+shotsOnTarget$y.square_root = (shotsOnTarget$y.offset)^0.5
+plot (shotsOnTarget [,c("Age", "Hit woodwork", "Big chances missed", "Interceptions", "Recoveries", "Assists")], 
+      col= (hatvals > levg.cutoff) + 1, cex=ifelse (1:nrows==11, 2.5, 1), 
+      pch=ifelse (1:nrows==11, 2, 1))
+```
+
+The plot above shows that the high leverage values (red points) do not mostlt appear around the edges of the two-dimensional scatter plots. This explains our small and positive residual.
+
+No further remedial measures are needed.
+
+### Interaction Plot:
+
+Next, we plot the interaction effects.
+
+```{r}
+par (mfrow=c(1,1))
+# Function to categorize a continuous variable into its quartiles
+categorize = function (x) {
+  quartiles = summary (x) [c(2, 3, 5)]
+  result = rep ("Q1", length (x))
+  result [(quartiles[1] < x) & (x <= quartiles [2])] = "Q2"
+  result [(quartiles[2] < x) & (x <= quartiles [3])] = "Q3"
+  result [quartiles[3] < x] = "Q4"
+  return (result)
+}
+
+# Interaction plots using the ggplot and dplyr packages
+
+library (ggplot2)
+library (dplyr)
+```
+
+```{r}
+categorize = function (x) {
+  quartiles = summary (x) [c(2, 3, 5)]
+  result = rep ("Q1", length (x))
+  result [(quartiles[1] < x) & (x <= quartiles [2])] = "Q2"
+  result [(quartiles[2] < x) & (x <= quartiles [3])] = "Q3"
+  result [quartiles[3] < x] = "Q4"
+  return (result)
+}
+```
+
+```{r}
+# Plot square root of Shots on Target vs Big chances missed in accordance with Interceptions
+# Note the use of the "with" function to avoid having to specify
+# each column name with "shotsOnTarget$" in front of it
+
+with (shotsOnTarget,
+      qplot (`Big chances missed`, y=(y.offset)^0.5, color = categorize(Interceptions)) + geom_smooth (method="lm"))
+```
+
+< Sth here >
+
+Big_chances_missed.c:Interceptions.c 2.59e-05 ***
+Interceptions.c:Assists.c            6.57e-06 ***
+Recoveries.c:Assists.c               8.83e-08 ***
+
+```{r}
+# Plot square root of Shots on Target vs Interceptions in accordance with Assists
+# Note the use of the "with" function to avoid having to specify
+# each column name with "shotsOnTarget$" in front of it
+
+with (shotsOnTarget,
+      qplot (Interceptions, y=(y.offset)^0.5, color = categorize(Assists)) + geom_smooth (method="lm"))
+```
+
+The interaction plot above shows that the relationship between square-root(shots on targets) and Interception is stronger (steeper) for lower number of assists than it is for higher number of assists.%%%%% xem lai
+
+```{r}
+# Plot square root of Shots on Target vs Recoveries in accordance with Assists
+# Note the use of the "with" function to avoid having to specify
+# each column name with "shotsOnTarget$" in front of it
+
+with (shotsOnTarget,
+      qplot (Recoveries, y=(y.offset)^0.5, color = categorize(Assists)) + geom_smooth (method="lm"))
+```
+
+The interaction plot above shows that the relationship between square-root(shots on targets) and Recoveries is stronger (steeper) for lower number of assists than it is for higher number of assists.%%%%% xem lai
+
+### Example predictions
+
+To illustrate use of the model for prediction, we show some example soccer players and their predicted shots on target:
+
+```{r}
+# save the predictions and pred. limits for every player in the data frame
+# converting back to the actual scale
+
+preds = predict (fit2.int.aic, interval='prediction')
+```
+
+```{r}
+shotsOnTarget$pred.shotsOnTarget = (preds [,1])^2
+shotsOnTarget$pred.lower = (preds [,2])^2
+shotsOnTarget$pred.upper = (preds [,3])^2
+```
+
+```{r}
+shotsOnTarget [c(120, 108, 25, 164, 165, 101), c("Age", "Hit woodwork", "Big chances missed", "Interceptions", "Recoveries", "Assists", "Shots on target", "pred.shotsOnTarget", "pred.lower", "pred.upper")]
+```
+
+```{r}
+# Count how many observations have prediction intervals that contain the
+# observed response value
+
+shotsOnTarget$in.interval = ifelse (shotsOnTarget$pred.lower <= shotsOnTarget$`Shots on target` &
+                              shotsOnTarget$`Shots on target` <= shotsOnTarget$pred.upper,
+                              1, 0)
+
+mean (shotsOnTarget$in.interval)
+```
+Among the six example houses whose predictions are shown above, the players 18,17,34 are predicted having the number of shots on target with a high precision. On the other hand, the players 20,24 are predicted to have higher number of shots on target while the player 29 is predicted to have lower number of shots on target compared to the observed data. However, the predicted numbers of shots on target for players 20,24 and 29 lie in 95% confidence interval of our predictions; therefore, there is no obvious concern about this difference.
+
+Among all of the players in the data set, 73.5% have prediction intervals that contain the observed shots on target. We would expect 95%.
+
+# Conclusions
+The final model has the adjusted R^2 = 0.9398, which means that 94% of the variation in square root shots on target is explained by the model. The residual standard error is 0.7751 square root shots on target. Based on our residual analysis, this model is consistent with the conditions for doing linear regression.
+
+Because of the two interaction effects, we cannot numerically interpret the slope estimates for Shots on Target vs Interceptions, vs Recoveries. Instead, we note from the interaction plots above that the relationship between square-root(shots on targets) and Interception is stronger (steeper) for lower number of assists than it is for higher number of assists. And the same patterns registered from the relationship between square-root(shots on targets) and Recoveries.
